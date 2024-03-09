@@ -12,7 +12,7 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
     event RequestFulfilled(uint256 requestId, uint256 randomWord);
     event NFTCreated(address owner, uint256 idNFT);
 
-    struct RequestStatuts {
+    struct RequestStatus {
         bool fullfield;
         bool exist;
         uint256 randomNumber;
@@ -22,13 +22,14 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
     }
 
     struct ArticleMetadataNFT {
+        bool fullfield;
         string title;
         string paragraph;
         address signer;
     }
 
-    mapping(uint256 => RequestStatuts) public checkRequestId;
-    mapping(uint256 => ArticleMetadataNFT) public checkMetadataNFT;
+    mapping(uint256 => RequestStatus) checkRequestId;
+    mapping(uint256 => ArticleMetadataNFT) checkMetadataNFT;
 
     uint256[] public allRequestId;
     uint256 public lastRequestId;
@@ -42,7 +43,7 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
     bytes32 internal keyHash =
         0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c;
 
-    uint32 internal callbackGasLimit = 100000;
+    uint32 internal callbackGasLimit = 1000000;
 
     uint16 internal requestConfirmations = 3;
 
@@ -73,7 +74,7 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
             numWords
         );
 
-        checkRequestId[requestId] = RequestStatuts({
+        checkRequestId[requestId] = RequestStatus({
             fullfield: false,
             exist: true,
             randomNumber: 0,
@@ -103,7 +104,7 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
             callbackGasLimit,
             numWords
         );
-        checkRequestId[requestId] = RequestStatuts({
+        checkRequestId[requestId] = RequestStatus({
             fullfield: false,
             exist: true,
             randomNumber: 0,
@@ -128,6 +129,7 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         checkRequestId[_requestId].randomNumber = _randomWord[0];
         _safeMint(msg.sender, _randomWord[0]);
         checkMetadataNFT[_randomWord[0]] = ArticleMetadataNFT({
+            fullfield: true,
             title: checkRequestId[_requestId].title,
             paragraph: checkRequestId[_requestId].paragraph,
             signer: checkRequestId[_requestId].signer
@@ -135,5 +137,27 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         issuedNFTs.push(_randomWord[0]);
         emit RequestFulfilled(_requestId, _randomWord[0]);
         emit NFTCreated(msg.sender, _randomWord[0]);
+    }
+
+    function getRequestStatus(
+        uint256 _requestId
+    ) external view returns (RequestStatus memory) {
+        require(
+            checkRequestId[_requestId].exist,
+            "Id of the request doesn't found"
+        );
+        RequestStatus memory result = checkRequestId[_requestId];
+        return result;
+    }
+
+    function getMetadataNFT(
+        uint256 _idNFT
+    ) external view returns (ArticleMetadataNFT memory) {
+        require(
+            checkMetadataNFT[_idNFT].fullfield,
+            "Id of the NFT doesn't found"
+        );
+        ArticleMetadataNFT memory result = checkMetadataNFT[_idNFT];
+        return result;
     }
 }
