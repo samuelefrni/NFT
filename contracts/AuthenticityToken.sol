@@ -8,9 +8,9 @@ import "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
-    event RequestSent(uint256 requestId);
-    event RequestResponse(uint256 requestId, uint256 randomWord);
-    event EmitNFT(address owner, uint256 idNFT);
+    event RequestCreated(uint256 requestId);
+    event RequestFulfilled(uint256 requestId, uint256 randomWord);
+    event NFTCreated(address owner, uint256 idNFT);
 
     struct RequestStatuts {
         bool fullfield;
@@ -21,31 +21,32 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         address signer;
     }
 
-    struct MetadataNFT {
+    struct ArticleMetadataNFT {
         string title;
         string paragraph;
         address signer;
     }
 
     mapping(uint256 => RequestStatuts) public checkRequestId;
-    mapping(uint256 => MetadataNFT) public checkMetadataNFT;
-
-    VRFCoordinatorV2Interface COORDINATOR;
-
-    uint64 private subscriptionId;
+    mapping(uint256 => ArticleMetadataNFT) public checkMetadataNFT;
 
     uint256[] public allRequestId;
     uint256 public lastRequestId;
+
     uint256[] public issuedNFTs;
 
-    bytes32 private keyHash =
+    VRFCoordinatorV2Interface COORDINATOR;
+
+    uint64 internal subscriptionId;
+
+    bytes32 internal keyHash =
         0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c;
 
-    uint32 private callbackGasLimit = 1000000;
+    uint32 internal callbackGasLimit = 100000;
 
-    uint16 private requestConfirmations = 3;
+    uint16 internal requestConfirmations = 3;
 
-    uint32 private numWords = 1;
+    uint32 internal numWords = 1;
 
     constructor(
         uint64 _subscriptionId
@@ -83,7 +84,37 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
 
         lastRequestId = requestId;
         allRequestId.push(requestId);
-        emit RequestSent(requestId);
+        emit RequestCreated(requestId);
+        return requestId;
+    }
+
+    function createNFT(
+        string memory _title,
+        string memory _paragraph
+    ) external returns (uint256 requestId) {
+        require(
+            balanceOf(msg.sender) < 2,
+            "User can't create more than 2 NFTs"
+        );
+        requestId = COORDINATOR.requestRandomWords(
+            keyHash,
+            subscriptionId,
+            requestConfirmations,
+            callbackGasLimit,
+            numWords
+        );
+        checkRequestId[requestId] = RequestStatuts({
+            fullfield: false,
+            exist: true,
+            randomNumber: 0,
+            title: _title,
+            paragraph: _paragraph,
+            signer: msg.sender
+        });
+
+        lastRequestId = requestId;
+        allRequestId.push(requestId);
+        emit RequestCreated(requestId);
         return requestId;
     }
 
@@ -96,21 +127,13 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         checkRequestId[_requestId].fullfield = true;
         checkRequestId[_requestId].randomNumber = _randomWord[0];
         _safeMint(msg.sender, _randomWord[0]);
-        checkMetadataNFT[_randomWord[0]] = MetadataNFT({
+        checkMetadataNFT[_randomWord[0]] = ArticleMetadataNFT({
             title: checkRequestId[_requestId].title,
             paragraph: checkRequestId[_requestId].paragraph,
             signer: checkRequestId[_requestId].signer
         });
         issuedNFTs.push(_randomWord[0]);
-        emit RequestResponse(_requestId, _randomWord[0]);
-        emit EmitNFT(msg.sender, _randomWord[0]);
-    }
-
-    function getRequestStatus(
-        uint256 _requestId
-    ) external view returns (RequestStatuts memory) {
-        require(checkRequestId[_requestId].exist, "Request doesn't found");
-        RequestStatuts memory result = checkRequestId[_requestId];
-        return result;
+        emit RequestFulfilled(_requestId, _randomWord[0]);
+        emit NFTCreated(msg.sender, _randomWord[0]);
     }
 }
