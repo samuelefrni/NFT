@@ -7,7 +7,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
-contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
+contract AuthenticityTokenTesting is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
     event RequestCreated(uint256 requestId);
     event RequestFulfilled(uint256 requestId, uint256 randomWord);
     event NFTCreated(address owner, uint256 idNFT);
@@ -38,10 +38,9 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
 
     VRFCoordinatorV2Interface COORDINATOR;
 
-    uint64 internal subscriptionId;
+    uint64 immutable s_subscriptionId;
 
-    bytes32 internal keyHash =
-        0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c;
+    bytes32 immutable s_keyHash;
 
     uint32 internal callbackGasLimit = 1000000;
 
@@ -50,16 +49,17 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
     uint32 internal numWords = 1;
 
     constructor(
-        uint64 _subscriptionId
+        uint64 _subscriptionId,
+        address _vrfCoordinator,
+        bytes32 _keyHash
     )
         ERC721("AuthenticityToken", "AT")
         VRFConsumerBaseV2(0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625)
         ConfirmedOwner(msg.sender)
     {
-        subscriptionId = _subscriptionId;
-        COORDINATOR = VRFCoordinatorV2Interface(
-            0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625
-        );
+        s_subscriptionId = _subscriptionId;
+        COORDINATOR = VRFCoordinatorV2Interface(_vrfCoordinator);
+        s_keyHash = _keyHash;
     }
 
     function publishArticle(
@@ -67,8 +67,8 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         string memory _paragraph
     ) external onlyOwner returns (uint256 requestId) {
         requestId = COORDINATOR.requestRandomWords(
-            keyHash,
-            subscriptionId,
+            s_keyHash,
+            s_subscriptionId,
             requestConfirmations,
             callbackGasLimit,
             numWords
@@ -98,8 +98,8 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
             "User can't create more than 2 NFTs"
         );
         requestId = COORDINATOR.requestRandomWords(
-            keyHash,
-            subscriptionId,
+            s_keyHash,
+            s_subscriptionId,
             requestConfirmations,
             callbackGasLimit,
             numWords
