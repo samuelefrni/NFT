@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: MIT
+pragma solidity ^0.8.7;
 
-pragma solidity ^0.8.24;
-
-import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
+import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
-contract AuthenticityTokenTesting is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
-    event RequestCreated(uint256 requestId);
-    event RequestFulfilled(uint256 requestId, uint256 randomWord);
-    event NFTCreated(address owner, uint256 idNFT);
+contract AuthenticityTokenTesting is VRFConsumerBaseV2, ERC721 {
+    VRFCoordinatorV2Interface immutable COORDINATOR;
 
     struct RequestStatus {
         bool fullfield;
         bool exist;
-        uint256 randomNumber;
+        uint256[] randomNumber;
         string title;
         string paragraph;
         address signer;
@@ -23,120 +19,89 @@ contract AuthenticityTokenTesting is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
 
     struct ArticleMetadataNFT {
         bool fullfield;
+        bool minted;
         string title;
         string paragraph;
         address signer;
     }
 
-    mapping(uint256 => RequestStatus) checkRequestId;
-    mapping(uint256 => ArticleMetadataNFT) checkMetadataNFT;
+    mapping(uint256 => RequestStatus) public checkRequestId;
+    mapping(uint256 => ArticleMetadataNFT) public checkMetadataNFT;
 
-    uint256[] public allRequestId;
     uint256 public lastRequestId;
+    uint256[] public allRequestId;
+    uint256[] public allRandomWords;
 
     uint256[] public issuedNFTs;
-
-    VRFCoordinatorV2Interface COORDINATOR;
 
     uint64 immutable s_subscriptionId;
 
     bytes32 immutable s_keyHash;
 
-    uint32 internal callbackGasLimit = 1000000;
+    uint32 constant CALLBACK_GAS_LIMIT = 300000;
 
-    uint16 internal requestConfirmations = 3;
+    uint16 constant REQUEST_CONFIRMATIONS = 3;
 
-    uint32 internal numWords = 1;
+    uint32 constant NUM_WORDS = 1;
+
+    address s_owner;
+
+    event RequestCreated(uint256 requestId);
+    event RequestFulfilled(uint256 requestId, uint256[] randomWords);
+    event NFTMinted(uint256 indexed idNFT, address indexed owner);
 
     constructor(
-        uint64 _subscriptionId,
-        address _vrfCoordinator,
-        bytes32 _keyHash
-    )
-        ERC721("AuthenticityToken", "AT")
-        VRFConsumerBaseV2(0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625)
-        ConfirmedOwner(msg.sender)
-    {
-        s_subscriptionId = _subscriptionId;
-        COORDINATOR = VRFCoordinatorV2Interface(_vrfCoordinator);
-        s_keyHash = _keyHash;
+        uint64 subscriptionId,
+        address vrfCoordinator,
+        bytes32 keyHash
+    ) VRFConsumerBaseV2(vrfCoordinator) ERC721("AuthenticityToken", "AT") {
+        COORDINATOR = VRFCoordinatorV2Interface(vrfCoordinator);
+        s_keyHash = keyHash;
+        s_owner = msg.sender;
+        s_subscriptionId = subscriptionId;
     }
 
     function publishArticle(
         string memory _title,
         string memory _paragraph
-    ) external onlyOwner returns (uint256 requestId) {
-        requestId = COORDINATOR.requestRandomWords(
+    ) external onlyOwner {
+        lastRequestId = COORDINATOR.requestRandomWords(
             s_keyHash,
             s_subscriptionId,
-            requestConfirmations,
-            callbackGasLimit,
-            numWords
+            REQUEST_CONFIRMATIONS,
+            CALLBACK_GAS_LIMIT,
+            NUM_WORDS
         );
 
-        checkRequestId[requestId] = RequestStatus({
+        checkRequestId[lastRequestId] = RequestStatus({
             fullfield: false,
             exist: true,
-            randomNumber: 0,
+            randomNumber: new uint[](0),
             title: _title,
             paragraph: _paragraph,
             signer: msg.sender
         });
 
-        lastRequestId = requestId;
-        allRequestId.push(requestId);
-        emit RequestCreated(requestId);
-        return requestId;
-    }
-
-    function createNFT(
-        string memory _title,
-        string memory _paragraph
-    ) external returns (uint256 requestId) {
-        require(
-            balanceOf(msg.sender) < 2,
-            "User can't create more than 2 NFTs"
-        );
-        requestId = COORDINATOR.requestRandomWords(
-            s_keyHash,
-            s_subscriptionId,
-            requestConfirmations,
-            callbackGasLimit,
-            numWords
-        );
-        checkRequestId[requestId] = RequestStatus({
-            fullfield: false,
-            exist: true,
-            randomNumber: 0,
-            title: _title,
-            paragraph: _paragraph,
-            signer: msg.sender
-        });
-
-        lastRequestId = requestId;
-        allRequestId.push(requestId);
-        emit RequestCreated(requestId);
-        return requestId;
+        allRequestId.push(lastRequestId);
+        emit RequestCreated(lastRequestId);
     }
 
     function fulfillRandomWords(
         uint256 _requestId,
-        uint[] memory _randomWord
+        uint256[] memory _randomWords
     ) internal override {
-        require(checkRequestId[_requestId].exist, "Request doesn't found");
-
+        allRandomWords = _randomWords;
         checkRequestId[_requestId].fullfield = true;
-        checkRequestId[_requestId].randomNumber = _randomWord[0];
-        _safeMint(msg.sender, _randomWord[0]);
-        checkMetadataNFT[_randomWord[0]] = ArticleMetadataNFT({
+        checkRequestId[_requestId].randomNumber = _randomWords;
+        checkMetadataNFT[_randomWords[0]] = ArticleMetadataNFT({
             fullfield: true,
+            minted: false,
             title: checkRequestId[_requestId].title,
             paragraph: checkRequestId[_requestId].paragraph,
             signer: checkRequestId[_requestId].signer
         });
-        issuedNFTs.push(_randomWord[0]);
-        emit RequestFulfilled(_requestId, _randomWord[0]);
-        emit NFTCreated(msg.sender, _randomWord[0]);
+        issuedNFTs.push(_randomWords[0]);
+        emit RequestFulfilled(_requestId, _randomWords);
     }
 
     function getRequestStatus(
@@ -150,26 +115,18 @@ contract AuthenticityTokenTesting is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         return result;
     }
 
-    function getMetadataNFT(
-        uint256 _idNFT
-    ) external view returns (ArticleMetadataNFT memory) {
+    function mintNFT(uint256 _idNFT) external {
         require(
             checkMetadataNFT[_idNFT].fullfield,
             "Id of the NFT doesn't found"
         );
-        ArticleMetadataNFT memory result = checkMetadataNFT[_idNFT];
-        return result;
+        _safeMint(checkMetadataNFT[_idNFT].signer, _idNFT);
+        checkMetadataNFT[_idNFT].minted = true;
+        emit NFTMinted(_idNFT, checkMetadataNFT[_idNFT].signer);
     }
 
-    function transferNTF(
-        address _from,
-        address _to,
-        uint256 _tokenId
-    ) external payable {
-        require(
-            ownerOf(_tokenId) == msg.sender,
-            "The sender doesn't hold this token"
-        );
-        _safeTransfer(_from, _to, _tokenId);
+    modifier onlyOwner() {
+        require(msg.sender == s_owner);
+        _;
     }
 }
