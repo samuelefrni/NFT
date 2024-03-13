@@ -24,24 +24,29 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         bool minted;
         string title;
         string paragraph;
-        address signer;
+        address owner;
+        bool reward;
     }
 
-    mapping(uint256 => RequestStatus) public checkRequestId;
+    mapping(uint256 => RequestStatus) checkRequestId;
     mapping(uint256 => ArticleMetadataNFT) public checkMetadataNFT;
 
-    uint256 public lastRequestId;
-    uint256[] public allRequestId;
-    uint256[] public allRandomWords;
+    uint256 priceNFT = 0.01 ether;
 
-    uint256[] public issuedNFTs;
+    uint256 public lastRequestId;
+    uint256[] allRequestId;
+    uint256[] allRandomWords;
+
+    address[] rewardedUsers;
+
+    uint256[] issuedNFTs;
 
     uint64 immutable subscriptionId;
 
     bytes32 immutable keyHash =
         0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c;
 
-    uint32 constant callbackGasLimit = 300000;
+    uint32 constant callbackGasLimit = 400000;
 
     uint16 constant requestConfirmations = 3;
 
@@ -89,35 +94,52 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         emit RequestCreated(lastRequestId);
     }
 
-    // function createNFT(
-    //     string memory _title,
-    //     string memory _paragraph
-    // ) external returns (uint256 requestId) {
-    //     require(
-    //         balanceOf(msg.sender) < 2,
-    //         "User can't create more than 2 NFTs"
-    //     );
-    //     requestId = COORDINATOR.requestRandomWords(
-    //         keyHash,
-    //         subscriptionId,
-    //         requestConfirmations,
-    //         callbackGasLimit,
-    //         numWords
-    //     );
-    //     checkRequestId[requestId] = RequestStatus({
-    //         fullfield: false,
-    //         exist: true,
-    //         randomNumber: 0,
-    //         title: _title,
-    //         paragraph: _paragraph,
-    //         signer: msg.sender
-    //     });
+    function createNFT(
+        string memory _title,
+        string memory _paragraph
+    ) external payable {
+        require(msg.value >= priceNFT, "Price for creating NFT: 0.01 ether");
 
-    //     lastRequestId = requestId;
-    //     allRequestId.push(requestId);
-    //     emit RequestCreated(requestId);
-    //     return requestId;
-    // }
+        if (msg.value > priceNFT) {
+            uint256 change = msg.value - priceNFT;
+            payable(msg.sender).transfer(change);
+        }
+
+        bool isIllimitated = false;
+
+        for (uint i = 0; i < rewardedUsers.length; i++) {
+            if (rewardedUsers[i] == msg.sender) {
+                isIllimitated = true;
+            }
+        }
+
+        if (isIllimitated != true) {
+            require(
+                balanceOf(msg.sender) < 2,
+                "Sender can't create more than 2 NFTs"
+            );
+        }
+
+        lastRequestId = COORDINATOR.requestRandomWords(
+            keyHash,
+            subscriptionId,
+            requestConfirmations,
+            callbackGasLimit,
+            numWords
+        );
+
+        checkRequestId[lastRequestId] = RequestStatus({
+            fullfield: false,
+            exist: true,
+            randomNumber: new uint[](0),
+            title: _title,
+            paragraph: _paragraph,
+            signer: msg.sender
+        });
+
+        allRequestId.push(lastRequestId);
+        emit RequestCreated(lastRequestId);
+    }
 
     function fulfillRandomWords(
         uint256 _requestId,
@@ -131,7 +153,8 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
             minted: false,
             title: checkRequestId[_requestId].title,
             paragraph: checkRequestId[_requestId].paragraph,
-            signer: checkRequestId[_requestId].signer
+            owner: checkRequestId[_requestId].signer,
+            reward: false
         });
         issuedNFTs.push(_randomWords[0]);
         emit RequestFulfilled(_requestId, _randomWords);
@@ -153,20 +176,43 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
             checkMetadataNFT[_idNFT].fullfield,
             "Id of the NFT doesn't found"
         );
-        _safeMint(checkMetadataNFT[_idNFT].signer, _idNFT);
+
+        _safeMint(checkMetadataNFT[_idNFT].owner, _idNFT);
         checkMetadataNFT[_idNFT].minted = true;
-        emit NFTMinted(_idNFT, checkMetadataNFT[_idNFT].signer);
+
+        bool hasReceivedReward = false;
+
+        for (uint i = 0; i < rewardedUsers.length; i++) {
+            if (rewardedUsers[i] == msg.sender) {
+                hasReceivedReward = true;
+            }
+        }
+
+        if (issuedNFTs.length % 50 == 0 && hasReceivedReward == false) {
+            checkMetadataNFT[_idNFT].reward = true;
+        } else {
+            checkMetadataNFT[_idNFT].reward = false;
+        }
+
+        emit NFTMinted(_idNFT, checkMetadataNFT[_idNFT].owner);
     }
 
-    // function transferNTF(
-    //     address _from,
-    //     address _to,
-    //     uint256 _tokenId
-    // ) external payable {
-    //     require(
-    //         ownerOf(_tokenId) == msg.sender,
-    //         "The sender doesn't hold this token"
-    //     );
-    //     _safeTransfer(_from, _to, _tokenId);
-    // }
+    function getReward(uint256 _idNFT) external {
+        require(ownerOf(_idNFT) == msg.sender, "You doesn't hold this NFT");
+        if (checkMetadataNFT[_idNFT].reward == true) {
+            checkMetadataNFT[_idNFT].reward = false;
+            rewardedUsers.push(msg.sender);
+        } else {
+            revert("The reward of this NFT is already taken ");
+        }
+    }
+
+    function transferFrom(
+        address _from,
+        address _to,
+        uint256 _tokenId
+    ) public override {
+        super.transferFrom(_from, _to, _tokenId);
+        checkMetadataNFT[_tokenId].owner = _to;
+    }
 }
