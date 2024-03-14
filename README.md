@@ -24,6 +24,12 @@ Welcome to the Decentralized News & Articles (DnA) project! This repository cont
 
 ## About deployment
 
+The information you can see in the hardhat.config file will not be correct for the compiler in your local enviroment. This is because the "cred" file was only present in the distribution. This sensitive file will not be present in the GitHub repository, so before running any command:
+
+1. **Comment**: import { INFURA_API_KEY, ETHERSCAN_API, PRIVATE_KEY } from "./cred"
+2. **Comment**: From the "networks" to "etherscan" properties of the HardhatUserConfig object
+3. **Important**: Do not comment the solidity version
+
 **_Before running the "npx hardhat test" or "npx hardhat compile"_**
 
 ## Installation
@@ -36,9 +42,15 @@ To install and run this project locally, follow these steps:
 4. Compile contracts: `npx hardhat compile`
 5. Run tests: `npx hardhat test`
 
-### Important
+## About testing
 
-**_Before running the "npx hardhat test"_**
+To test the Chainlink VRF, i had to create two differnt AuthenticityToken smart contract. I followed these steps:
+
+1. **Deployment of the VRFCoordinatorV2Mock contract**: Firstly, I deployed the VRFCoordinatorV2Mock contract. During deployment, I set the parameters _baseFee and _GASPRICELINK required for the Chainlink VRF operation.
+2. **Deployment of the AuthenticityTokenTesting contract**: Subsequently, I deployed the AuthenticityTokenTesting contract. This contract was configured with specific arguments to enable testing in a local environment.
+3. **Execution of tests**: Once both contracts were successfully deployed, I executed a series of tests to verify the proper functioning of the Chainlink VRF functionality. During the tests, I simulated various situations and scenarios to ensure that the generation of random numbers was secure and verifiable.
+4. **Verification of results**: After running the tests, I verified the results to ensure that the Chainlink VRF functionality worked as expected. In particular, I checked the correctness of the generated random numbers and confirmed that they were consistent with expectations.
+5. **Error handling**: In case any errors occurred during the test execution, I identified the causes and made the necessary corrections to resolve them. Special attention was given to error handling to ensure the robustness and reliability of the system.
 
 ## Contributing
 
