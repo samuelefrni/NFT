@@ -5,7 +5,7 @@
 
   <p align="center">
     <br />
-    <a href="https://sepolia.etherscan.io/address/0xff9c4ba6ea2cb24e125a5a8d35ae3fe4caf6412f"><strong>Contracts on the blockchain</strong></a>
+    <a href="https://sepolia.etherscan.io/address/0x5ad32c033983b00e7367eb19230db467158cf4dc"><strong>Contracts on the blockchain</strong></a>
     <br />
     <br />
     <a href="./assets/Progetto Ethereum Advanced di Samuele Furnari.pdf">Presentation IT</a>
