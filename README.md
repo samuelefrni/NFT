@@ -54,11 +54,11 @@ To test the Chainlink VRF, i had to create two differnt AuthenticityToken smart 
 
 ### Important
 
-After installing the dependencies, is crucial for the testing purpose to change the visibility of the "s_currentSubId" in line 59 to public in the "VRFCoordinatorV2Mock.sol". 
+After installing the dependencies, is crucial for the testing purpose to change the visibility of the "s_currentSubId" variable in line 59. The variable is in the contract "VRFCoordinatorV2Mock.sol" and it should be changed to public. 
 
 ### How to reach that contract
 
-<div align="center"><img src="./assets" width="150px"></div>
+<div align="left"><img src="./assets/Filestructure.png"></div>
 
 **_Before running the "npx hardhat test" or "npx hardhat compile"_**
 
