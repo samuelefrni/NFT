@@ -56,7 +56,7 @@ To test the Chainlink VRF, i had to create two differnt AuthenticityToken smart 
 
 After installing the dependencies, is crucial for the testing purpose to change the visibility of the "s_currentSubId" variable in line 59. The variable is in the contract "VRFCoordinatorV2Mock.sol" and it should be changed to public. 
 
-### How to reach that contract
+### How to reach VRFCoordinatorV2Mock
 
 <div align="left"><img src="./assets/Filestructure.png"></div>
 
