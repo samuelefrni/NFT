@@ -30,17 +30,7 @@ The information you can see in the hardhat.config file will not be correct for t
 2. **Comment**: From the "networks" to "etherscan" properties of the HardhatUserConfig object
 3. **Important**: Do not comment the solidity version
 
-**_Before running the "npx hardhat test" or "npx hardhat compile"_**
-
-## Installation
-
-To install and run this project locally, follow these steps:
-
-1. Clone this repository: `git clone https://github.com/samuelefrni/NFT`
-2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Compile contracts: `npx hardhat compile`
-5. Run tests: `npx hardhat test`
+**_Before running the "npx hardhat compile"_**
 
 ## About testing
 
@@ -60,7 +50,17 @@ After installing the dependencies, is crucial for the testing purpose to change 
 
 <div align="left"><img src="./assets/Filestructure.png"></div>
 
-**_Before running the "npx hardhat test" or "npx hardhat compile"_**
+**_Before running the "npx hardhat test"_**
+
+## Installation
+
+To install and run this project locally, follow these steps:
+
+1. Clone this repository: `git clone https://github.com/samuelefrni/NFT`
+2. Navigate to the project directory
+3. Install dependencies: `npm install`
+4. Compile contracts: `npx hardhat compile`
+5. Run tests: `npx hardhat test`
 
 ## Contributing
 
