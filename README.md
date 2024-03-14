@@ -52,6 +52,16 @@ To test the Chainlink VRF, i had to create two differnt AuthenticityToken smart 
 4. **Verification of results**: After running the tests, I verified the results to ensure that the Chainlink VRF functionality worked as expected. In particular, I checked the correctness of the generated random numbers and confirmed that they were consistent with expectations.
 5. **Error handling**: In case any errors occurred during the test execution, I identified the causes and made the necessary corrections to resolve them. Special attention was given to error handling to ensure the robustness and reliability of the system.
 
+### Important
+
+After installing the dependencies, is crucial for the testing purpose to change the visibility of the "s_currentSubId" in line 59 to public in the "VRFCoordinatorV2Mock.sol". 
+
+### How to reach that contract
+
+<div align="center"><img src="./assets" width="150px"></div>
+
+**_Before running the "npx hardhat test" or "npx hardhat compile"_**
+
 ## Contributing
 
 Contributions are welcome! Feel free to open issues or submit pull requests.
