@@ -11,7 +11,7 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
     VRFCoordinatorV2Interface COORDINATOR;
 
     struct RequestStatus {
-        bool fullfield;
+        bool fulfilled;
         bool exist;
         uint256[] randomNumber;
         string title;
@@ -20,7 +20,7 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
     }
 
     struct ArticleMetadataNFT {
-        bool fullfield;
+        bool fulfilled;
         bool minted;
         string title;
         string paragraph;
@@ -30,14 +30,13 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
 
     mapping(uint256 => RequestStatus) checkRequestId;
     mapping(uint256 => ArticleMetadataNFT) public checkMetadataNFT;
+    mapping(address => bool) public isRewarded;
 
     uint256 priceNFT = 0.01 ether;
 
     uint256 public lastRequestId;
     uint256[] allRequestId;
     uint256[] allRandomWords;
-
-    address[] rewardedUsers;
 
     uint256[] issuedNFTs;
 
@@ -82,7 +81,7 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         );
 
         checkRequestId[lastRequestId] = RequestStatus({
-            fullfield: false,
+            fulfilled: false,
             exist: true,
             randomNumber: new uint[](0),
             title: _title,
@@ -107,10 +106,8 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
 
         bool isIllimitated = false;
 
-        for (uint i = 0; i < rewardedUsers.length; i++) {
-            if (rewardedUsers[i] == msg.sender) {
-                isIllimitated = true;
-            }
+        if (isRewarded[msg.sender] == true) {
+            isIllimitated = true;
         }
 
         if (isIllimitated != true) {
@@ -129,7 +126,7 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         );
 
         checkRequestId[lastRequestId] = RequestStatus({
-            fullfield: false,
+            fulfilled: false,
             exist: true,
             randomNumber: new uint[](0),
             title: _title,
@@ -146,16 +143,21 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
         uint256[] memory _randomWords
     ) internal override {
         allRandomWords = _randomWords;
-        checkRequestId[_requestId].fullfield = true;
+        checkRequestId[_requestId].fulfilled = true;
         checkRequestId[_requestId].randomNumber = _randomWords;
         checkMetadataNFT[_randomWords[0]] = ArticleMetadataNFT({
-            fullfield: true,
+            fulfilled: true,
             minted: false,
             title: checkRequestId[_requestId].title,
             paragraph: checkRequestId[_requestId].paragraph,
             owner: checkRequestId[_requestId].signer,
             reward: false
         });
+
+        if (issuedNFTs.length % 2 == 0) {
+            checkMetadataNFT[_randomWords[0]].reward = true;
+        }
+
         issuedNFTs.push(_randomWords[0]);
         emit RequestFulfilled(_requestId, _randomWords);
     }
@@ -163,45 +165,26 @@ contract AuthenticityToken is ERC721, VRFConsumerBaseV2, ConfirmedOwner {
     function getRequestStatus(
         uint256 _requestId
     ) external view returns (RequestStatus memory) {
-        require(
-            checkRequestId[_requestId].exist,
-            "Id of the request doesn't found"
-        );
+        require(checkRequestId[_requestId].exist, "Request ID not found");
         RequestStatus memory result = checkRequestId[_requestId];
         return result;
     }
 
     function mintNFT(uint256 _idNFT) external {
-        require(
-            checkMetadataNFT[_idNFT].fullfield,
-            "Id of the NFT doesn't found"
-        );
+        require(checkMetadataNFT[_idNFT].fulfilled, "Request ID not found");
 
         _safeMint(checkMetadataNFT[_idNFT].owner, _idNFT);
         checkMetadataNFT[_idNFT].minted = true;
-
-        bool hasReceivedReward = false;
-
-        for (uint i = 0; i < rewardedUsers.length; i++) {
-            if (rewardedUsers[i] == msg.sender) {
-                hasReceivedReward = true;
-            }
-        }
-
-        if (issuedNFTs.length % 50 == 0 && hasReceivedReward == false) {
-            checkMetadataNFT[_idNFT].reward = true;
-        } else {
-            checkMetadataNFT[_idNFT].reward = false;
-        }
 
         emit NFTMinted(_idNFT, checkMetadataNFT[_idNFT].owner);
     }
 
     function getReward(uint256 _idNFT) external {
         require(ownerOf(_idNFT) == msg.sender, "You doesn't hold this NFT");
+        require(checkMetadataNFT[_idNFT].minted == true);
         if (checkMetadataNFT[_idNFT].reward == true) {
             checkMetadataNFT[_idNFT].reward = false;
-            rewardedUsers.push(msg.sender);
+            isRewarded[msg.sender] = true;
         } else {
             revert("The reward of this NFT is already taken ");
         }

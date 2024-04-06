@@ -16,7 +16,7 @@ describe("VRFCoordinatorV2Mock", () => {
     return { owner, otherAccount, VRFCoordinatorV2Mock };
   }
   describe("Testing publishArticle functions", () => {
-    it("Should generate the requestId from the publishArticle, fullFill the metadata and mint the NFT token", async () => {
+    it("Should generate the requestId from the publishArticle, fulfilled the metadata and mint the NFT token", async () => {
       const { owner, VRFCoordinatorV2Mock } = await loadFixture(deploy);
 
       const contractMockAddress = await VRFCoordinatorV2Mock.getAddress(); //@Param for testing
@@ -51,17 +51,17 @@ describe("VRFCoordinatorV2Mock", () => {
         "La capitale d'Italia"
       );
 
-      const _requestId = await AuthenticityTokenTesting.lastRequestId(); //Get lastRequest
-
       //Fullfill the reuquest from VRFMock
       await VRFCoordinatorV2Mock.fulfillRandomWords(
-        _requestId,
+        await AuthenticityTokenTesting.lastRequestId(), //Get lastRequest
         contractCounsumerAddress
       );
 
       //Check the request status
       expect(
-        await AuthenticityTokenTesting.getRequestStatus(_requestId)
+        await AuthenticityTokenTesting.getRequestStatus(
+          await AuthenticityTokenTesting.lastRequestId()
+        )
       ).to.deep.equal([
         true,
         true,
@@ -82,7 +82,7 @@ describe("VRFCoordinatorV2Mock", () => {
         "Roma",
         "La capitale d'Italia",
         owner.address,
-        false,
+        true,
       ]);
 
       //Create NFT and check metadata
@@ -95,6 +95,9 @@ describe("VRFCoordinatorV2Mock", () => {
       expect(await AuthenticityTokenTesting.ownerOf(idNFT)).to.equal(
         owner.address
       );
+
+      //Get reward
+      await AuthenticityTokenTesting.getReward(idNFT);
 
       expect(
         await AuthenticityTokenTesting.checkMetadataNFT(idNFT)
@@ -173,7 +176,7 @@ describe("VRFCoordinatorV2Mock", () => {
         "Palermo",
         "Capoluogo della Sicilia",
         owner.address,
-        false,
+        true,
       ]);
 
       await AuthenticityTokenTesting.mintNFT(idNFT);
@@ -186,11 +189,11 @@ describe("VRFCoordinatorV2Mock", () => {
         "Palermo",
         "Capoluogo della Sicilia",
         owner.address,
-        false,
+        true,
       ]);
     });
     it("Should revert if the user try to hold more than 2 NFTs", async () => {
-      const { VRFCoordinatorV2Mock } = await loadFixture(deploy);
+      const { owner, VRFCoordinatorV2Mock } = await loadFixture(deploy);
 
       const contractMockAddress = await VRFCoordinatorV2Mock.getAddress(); //@Param for testing
 
@@ -246,13 +249,21 @@ describe("VRFCoordinatorV2Mock", () => {
         contractCounsumerAddress
       );
 
-      await AuthenticityTokenTesting.mintNFT(
+      const firstMint = await AuthenticityTokenTesting.mintNFT(
         await AuthenticityTokenTesting.issuedNFTs(0)
       );
 
-      await AuthenticityTokenTesting.mintNFT(
+      await expect(firstMint)
+        .to.emit(AuthenticityTokenTesting, "NFTMinted")
+        .withArgs(await AuthenticityTokenTesting.issuedNFTs(0), owner.address);
+
+      const secondMint = await AuthenticityTokenTesting.mintNFT(
         await AuthenticityTokenTesting.issuedNFTs(1)
       );
+
+      await expect(secondMint)
+        .to.emit(AuthenticityTokenTesting, "NFTMinted")
+        .withArgs(await AuthenticityTokenTesting.issuedNFTs(1), owner.address);
 
       await expect(
         AuthenticityTokenTesting.createNFT(
@@ -261,6 +272,9 @@ describe("VRFCoordinatorV2Mock", () => {
           { value: ethers.parseEther("1") }
         )
       ).to.be.revertedWith("Sender can't create more than 2 NFTs");
+      expect(await AuthenticityTokenTesting.balanceOf(owner.address)).to.equal(
+        2
+      );
     });
     it("Should allow the user to hold more than 2 NFTs if he is a rewardedUsers", async () => {
       const { owner, otherAccount, VRFCoordinatorV2Mock } = await loadFixture(
@@ -311,7 +325,12 @@ describe("VRFCoordinatorV2Mock", () => {
         await AuthenticityTokenTesting.issuedNFTs(0)
       );
 
-      await AuthenticityTokenTesting.connect(otherAccount).createNFT(
+      //Get reward
+      await AuthenticityTokenTesting.getReward(
+        await AuthenticityTokenTesting.issuedNFTs(0)
+      );
+
+      await AuthenticityTokenTesting.connect(owner).createNFT(
         "Messina",
         "Provincia della Sicilia",
         { value: ethers.parseEther("1") }
@@ -328,16 +347,6 @@ describe("VRFCoordinatorV2Mock", () => {
       await AuthenticityTokenTesting.mintNFT(
         await AuthenticityTokenTesting.issuedNFTs(1)
       );
-
-      await AuthenticityTokenTesting.connect(otherAccount).getReward(
-        await AuthenticityTokenTesting.issuedNFTs(1)
-      );
-
-      await expect(
-        AuthenticityTokenTesting.connect(owner).getReward(
-          await AuthenticityTokenTesting.issuedNFTs(1)
-        )
-      ).to.be.revertedWith("You doesn't hold this NFT");
 
       await AuthenticityTokenTesting.connect(owner).createNFT(
         "Catania",
@@ -357,15 +366,7 @@ describe("VRFCoordinatorV2Mock", () => {
         await AuthenticityTokenTesting.issuedNFTs(2)
       );
 
-      await expect(
-        AuthenticityTokenTesting.connect(owner).createNFT(
-          "Trapani",
-          "Provincia della Sicilia",
-          { value: ethers.parseEther("1") }
-        )
-      ).to.be.revertedWith("Sender can't create more than 2 NFTs");
-
-      await AuthenticityTokenTesting.connect(otherAccount).createNFT(
+      await AuthenticityTokenTesting.connect(owner).createNFT(
         "Enna",
         "Provincia della Sicilia",
         { value: ethers.parseEther("1") }
@@ -383,29 +384,8 @@ describe("VRFCoordinatorV2Mock", () => {
         await AuthenticityTokenTesting.issuedNFTs(3)
       );
 
-      await AuthenticityTokenTesting.connect(otherAccount).createNFT(
-        "Ragusa",
-        "Provincia della Sicilia",
-        { value: ethers.parseEther("1") }
-      );
-
-      const _requestId5 = await AuthenticityTokenTesting.lastRequestId(); //Get lastRequest
-
-      //Fullfill the reuquest from VRFMock
-      await VRFCoordinatorV2Mock.fulfillRandomWords(
-        _requestId5,
-        contractCounsumerAddress
-      );
-
-      await AuthenticityTokenTesting.mintNFT(
-        await AuthenticityTokenTesting.issuedNFTs(4)
-      );
-
-      expect(
-        await AuthenticityTokenTesting.balanceOf(otherAccount.address)
-      ).to.equal(3);
       expect(await AuthenticityTokenTesting.balanceOf(owner.address)).to.equal(
-        2
+        4
       );
     });
     it("Should revert if the sender doesn't have enough fund", async () => {
@@ -472,7 +452,7 @@ describe("VRFCoordinatorV2Mock", () => {
       );
 
       await expect(AuthenticityTokenTesting.mintNFT(12345)).to.be.revertedWith(
-        "Id of the NFT doesn't found"
+        "Request ID not found"
       );
     });
     it("Should assign the reward", async () => {
@@ -514,7 +494,28 @@ describe("VRFCoordinatorV2Mock", () => {
         await AuthenticityTokenTesting.getAddress()
       );
 
+      expect(
+        await AuthenticityTokenTesting.checkMetadataNFT(
+          await AuthenticityTokenTesting.issuedNFTs(0)
+        )
+      ).to.deep.equal([
+        true,
+        false,
+        "Roma",
+        "Capitale d'Italia",
+        owner.address,
+        true, //Reward
+      ]);
+
       await AuthenticityTokenTesting.mintNFT(
+        await AuthenticityTokenTesting.issuedNFTs(0)
+      );
+
+      expect(await AuthenticityTokenTesting.isRewarded(owner.address)).to.equal(
+        false
+      );
+
+      await AuthenticityTokenTesting.getReward(
         await AuthenticityTokenTesting.issuedNFTs(0)
       );
 
@@ -531,32 +532,9 @@ describe("VRFCoordinatorV2Mock", () => {
         false, //Reward
       ]);
 
-      await AuthenticityTokenTesting.publishArticle(
-        "Roma",
-        "Capitale d'Italia"
+      expect(await AuthenticityTokenTesting.isRewarded(owner.address)).to.equal(
+        true
       );
-
-      await VRFCoordinatorV2Mock.fulfillRandomWords(
-        await AuthenticityTokenTesting.lastRequestId(),
-        await AuthenticityTokenTesting.getAddress()
-      );
-
-      await AuthenticityTokenTesting.mintNFT(
-        await AuthenticityTokenTesting.issuedNFTs(1)
-      );
-
-      expect(
-        await AuthenticityTokenTesting.checkMetadataNFT(
-          await AuthenticityTokenTesting.issuedNFTs(1)
-        )
-      ).to.deep.equal([
-        true,
-        true,
-        "Roma",
-        "Capitale d'Italia",
-        owner.address,
-        true, //Reward
-      ]);
     });
   });
   describe("Testing transferFrom function", () => {
@@ -675,7 +653,7 @@ describe("VRFCoordinatorV2Mock", () => {
         "Roma",
         "La capitale d'Italia",
         owner.address,
-        false,
+        true,
       ]);
 
       await AuthenticityTokenTesting.transferFrom(
@@ -699,7 +677,7 @@ describe("VRFCoordinatorV2Mock", () => {
         "Roma",
         "La capitale d'Italia",
         otherAccount.address,
-        false,
+        true,
       ]);
     });
     it("Should revert if the sender doesn't hold the NFT", async () => {
@@ -750,6 +728,196 @@ describe("VRFCoordinatorV2Mock", () => {
           await AuthenticityTokenTesting.issuedNFTs(0)
         )
       ).to.be.reverted;
+    });
+  });
+  describe("Testing getReward function", () => {
+    it("Should revert if the sender isn't the owner of the NFT", async () => {
+      const { otherAccount, owner, VRFCoordinatorV2Mock } = await loadFixture(
+        deploy
+      );
+
+      await VRFCoordinatorV2Mock.createSubscription(); //Create the subscription
+
+      const _subId = await VRFCoordinatorV2Mock.s_currentSubId(); //Get the current subscription
+
+      //Fund the subcription
+      await VRFCoordinatorV2Mock.fundSubscription(
+        _subId,
+        ethers.parseEther("1")
+      );
+
+      const KEYHASH_TESTING =
+        "0xd89b2bf150e3b9e13446986e571fb9cab24b13cea0a43ea20a6049a85cc807cc"; //@Param for testing
+
+      //Deploy the consumer contract
+      const AuthenticityTokenTesting = await ethers.deployContract(
+        "AuthenticityTokenTesting",
+        [_subId, await VRFCoordinatorV2Mock.getAddress(), KEYHASH_TESTING]
+      );
+
+      await VRFCoordinatorV2Mock.addConsumer(
+        _subId,
+        await AuthenticityTokenTesting.getAddress()
+      );
+
+      await AuthenticityTokenTesting.publishArticle("Roma", "La capitale");
+
+      await VRFCoordinatorV2Mock.fulfillRandomWords(
+        await AuthenticityTokenTesting.lastRequestId(),
+        AuthenticityTokenTesting
+      );
+
+      expect(
+        await AuthenticityTokenTesting.checkMetadataNFT(
+          await AuthenticityTokenTesting.issuedNFTs(0)
+        )
+      ).to.deep.equal([
+        true,
+        false,
+        "Roma",
+        "La capitale",
+        owner.address,
+        true,
+      ]);
+
+      await AuthenticityTokenTesting.mintNFT(
+        await AuthenticityTokenTesting.issuedNFTs(0)
+      );
+
+      await expect(
+        AuthenticityTokenTesting.connect(otherAccount).getReward(
+          await AuthenticityTokenTesting.issuedNFTs(0)
+        )
+      ).to.be.revertedWith("You doesn't hold this NFT");
+    });
+    it("Should revert if the NFT isn't minted", async () => {
+      const { owner, VRFCoordinatorV2Mock } = await loadFixture(deploy);
+
+      await VRFCoordinatorV2Mock.createSubscription(); //Create the subscription
+
+      const _subId = await VRFCoordinatorV2Mock.s_currentSubId(); //Get the current subscription
+
+      //Fund the subcription
+      await VRFCoordinatorV2Mock.fundSubscription(
+        _subId,
+        ethers.parseEther("1")
+      );
+
+      const KEYHASH_TESTING =
+        "0xd89b2bf150e3b9e13446986e571fb9cab24b13cea0a43ea20a6049a85cc807cc"; //@Param for testing
+
+      //Deploy the consumer contract
+      const AuthenticityTokenTesting = await ethers.deployContract(
+        "AuthenticityTokenTesting",
+        [_subId, await VRFCoordinatorV2Mock.getAddress(), KEYHASH_TESTING]
+      );
+
+      await VRFCoordinatorV2Mock.addConsumer(
+        _subId,
+        await AuthenticityTokenTesting.getAddress()
+      );
+
+      await AuthenticityTokenTesting.publishArticle("Roma", "La capitale");
+
+      await VRFCoordinatorV2Mock.fulfillRandomWords(
+        await AuthenticityTokenTesting.lastRequestId(),
+        AuthenticityTokenTesting
+      );
+
+      expect(
+        await AuthenticityTokenTesting.checkMetadataNFT(
+          await AuthenticityTokenTesting.issuedNFTs(0)
+        )
+      ).to.deep.equal([
+        true,
+        false,
+        "Roma",
+        "La capitale",
+        owner.address,
+        true,
+      ]);
+
+      await expect(
+        AuthenticityTokenTesting.connect(owner).getReward(
+          await AuthenticityTokenTesting.issuedNFTs(0)
+        )
+      ).to.be.reverted;
+    });
+    it("Should assign the reward at the user and change the metadata of the NFT", async () => {
+      const { owner, VRFCoordinatorV2Mock } = await loadFixture(deploy);
+
+      await VRFCoordinatorV2Mock.createSubscription(); //Create the subscription
+
+      const _subId = await VRFCoordinatorV2Mock.s_currentSubId(); //Get the current subscription
+
+      //Fund the subcription
+      await VRFCoordinatorV2Mock.fundSubscription(
+        _subId,
+        ethers.parseEther("1")
+      );
+
+      const KEYHASH_TESTING =
+        "0xd89b2bf150e3b9e13446986e571fb9cab24b13cea0a43ea20a6049a85cc807cc"; //@Param for testing
+
+      //Deploy the consumer contract
+      const AuthenticityTokenTesting = await ethers.deployContract(
+        "AuthenticityTokenTesting",
+        [_subId, await VRFCoordinatorV2Mock.getAddress(), KEYHASH_TESTING]
+      );
+
+      await VRFCoordinatorV2Mock.addConsumer(
+        _subId,
+        await AuthenticityTokenTesting.getAddress()
+      );
+
+      await AuthenticityTokenTesting.publishArticle("Roma", "La capitale");
+
+      await VRFCoordinatorV2Mock.fulfillRandomWords(
+        await AuthenticityTokenTesting.lastRequestId(),
+        AuthenticityTokenTesting
+      );
+
+      expect(
+        await AuthenticityTokenTesting.checkMetadataNFT(
+          await AuthenticityTokenTesting.issuedNFTs(0)
+        )
+      ).to.deep.equal([
+        true,
+        false,
+        "Roma",
+        "La capitale",
+        owner.address,
+        true,
+      ]);
+
+      await AuthenticityTokenTesting.mintNFT(
+        await AuthenticityTokenTesting.issuedNFTs(0)
+      );
+
+      expect(await AuthenticityTokenTesting.isRewarded(owner.address)).to.equal(
+        false
+      );
+
+      await AuthenticityTokenTesting.getReward(
+        await AuthenticityTokenTesting.issuedNFTs(0)
+      );
+
+      expect(await AuthenticityTokenTesting.isRewarded(owner.address)).to.equal(
+        true
+      );
+
+      expect(
+        await AuthenticityTokenTesting.checkMetadataNFT(
+          await AuthenticityTokenTesting.issuedNFTs(0)
+        )
+      ).to.deep.equal([
+        true,
+        true,
+        "Roma",
+        "La capitale",
+        owner.address,
+        false,
+      ]);
     });
   });
 });
